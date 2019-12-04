@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Http\Resources\Setup;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class Group extends JsonResource
+{
+    /**
+     * Transform the resource into an array.
+     *
+     * @param  Request  $request
+     * @return array
+     */
+    public function toArray($request)
+    {
+        return parent::toArray($request);
+    }
+}

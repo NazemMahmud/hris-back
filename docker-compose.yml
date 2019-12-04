@@ -1,0 +1,64 @@
+version: "3.5"
+services:
+  app:
+    build: .
+    container_name: hris_app
+    working_dir: /var/www/hris
+    networks:
+      - hris
+    volumes:
+      - ./:/var/www/hris
+  webserver:
+    image: nginx:1.15
+    container_name: hris_nginx
+    working_dir: /var/www/hris
+    networks:
+      - hris
+    ports:
+      - 8002:80
+    volumes:
+      - ./:/var/www/hris
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+  db:
+    image: mysql:8.0
+    container_name: hris_mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - hris
+    volumes:
+      - /home/mahmud/Workspace/Deploy/db_store/hris:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=hris
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=hris
+      - MYSQL_PASSWORD=hris
+  redis:
+    image: redis:latest
+    container_name: hris_redis
+    ports:
+      - "6383:6379"
+    networks:
+      - hris
+  db_client:
+    image: adminer
+    container_name: hris_adminer
+    ports:
+      - 8003:8080
+    networks:
+      - hris
+
+  schduler:
+    container_name: hris_schduler
+    restart: always
+    build: ./schedule
+    working_dir: /var/www/hris
+    volumes:
+      - ./:/var/www/hris
+    ports:
+      - 8004:80
+    networks:
+      - hris
+
+networks:
+  hris:
+    driver: bridge

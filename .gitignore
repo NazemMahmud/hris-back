@@ -1,0 +1,5 @@
+.env
+.vscode
+/vendor
+.idea/
+public/vendor
