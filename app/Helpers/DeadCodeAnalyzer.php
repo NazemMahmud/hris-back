@@ -3,7 +3,7 @@
 namespace App\Helpers;
 
 use function foo\func;
-
+define ('EOL', "<br><br>");
 class DeadCodeAnalyzer
 {
     /**
@@ -107,12 +107,12 @@ class DeadCodeAnalyzer
 //        echo "parent:: ". $this->parentClassNamespace. "-->\t\t". $this->parentClassName." <br>\n\n";
         /*  echo "namespace:: ".$namespace."<br>\n\n";*/
 //        $myFile = fopen()
-       /* $file = 'myReport.txt';
-        $destinationPath = base_path() . "/myReport/";
-        if (!is_dir($destinationPath)) {
-            mkdir($destinationPath, 0777, true);
-        }
-        File::put($destinationPath . $file, $data);*/
+        /* $file = 'myReport.txt';
+         $destinationPath = base_path() . "/myReport/";
+         if (!is_dir($destinationPath)) {
+             mkdir($destinationPath, 0777, true);
+         }
+         File::put($destinationPath . $file, $data);*/
 //        return response()->download($destinationPath . $file);
         $methods = $class->getMethods();
         $functions = $this->getFunctions($class, $namespace);
@@ -137,17 +137,19 @@ class DeadCodeAnalyzer
         $classFlag = 0;
         for ($i = 0; $i < $count; $i++) {
             if ($tokens[$i] instanceof \PHP_Token_NAMESPACE) {
+                echo "ASShole{$i}:: ".$tokens[$i].EOL;
                 $namespace = $tokens[$i]->getName();
 //                $this->classStore($namespace);
 //                echo "Namespace: ".$tokens[$i].":: ".$namespace."\n\n";
             } elseif ($tokens[$i] instanceof \PHP_Token_CLASS) {
+                echo "AShole{$i}:: ".$tokens[$i].EOL;
                 $class = $tokens[$i]->getName();
                 if ($namespace != '') {
                     $class = $namespace . DIRECTORY_SEPARATOR . $class;
                 }
                 $classFlag = 1;
             } elseif ($classFlag) {
-                break;
+                return $class;
             }
         }
         return $class;
@@ -196,14 +198,14 @@ class DeadCodeAnalyzer
     public function getDeadCodes()
     {
         // MAIN PART
-       /* $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
-        $this->inspectFiles($allFiles);
-//        $this->staticAndInternalCheck($allFiles);
-//        $this->interfacePropertyCheck($allFiles);
-//        $this->externalCallCheck($allFiles);
-        return $allFiles;*/
+        /* $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
+         $this->inspectFiles($allFiles);
+ //        $this->staticAndInternalCheck($allFiles);
+ //        $this->interfacePropertyCheck($allFiles);
+ //        $this->externalCallCheck($allFiles);
+         return $allFiles;*/
 
-       // TESTING PART
+        // TESTING PART
 //        $files = app_path() . "\Models\Holiday\FixedHoliday.php";
         $files = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
         $all = [];
@@ -227,6 +229,12 @@ class DeadCodeAnalyzer
 
     }
 
+    public function getMethodName($token)
+    {
+        print_r($token);
+        echo "<br>";
+    }
+
     /**
      * @param $files
      * @throws \ReflectionException
@@ -239,61 +247,83 @@ class DeadCodeAnalyzer
          */
         $classesToCheck = [];
         foreach ($files as $filePath) {
-            echo $filePath." ASH HSSH <br>";
-//            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
+            echo $filePath . " ASH HSSH <br>";
             $namespace = $this->getNameSpace($filePath);
-            echo "NAMESPACE:: ".$namespace."<br><br>";
-            if ($namespace) {
-                $class = new \ReflectionClass($namespace);
-//                echo "CLASS:: ".$class."\n\n";
-                $this->parentClass($class);
-                echo "ParentClassNamespace:: ".$this->parentClassNamespace."<br><br>";
-                echo "ParentClassName:: ".$this->parentClassName ."<br><br>";
-//                $this->classStore($namespace, $filePath);
+            echo "NAMESPACE:: " . $namespace . "<br><br>";
+            $code = file_get_contents($filePath);
+            $tokens = new \PHP_Token_Stream($code);
+            $totalToken = count($tokens);
+            for( $t = 0; $t < $totalToken; $t++){
+                echo "TokenI:: ".$tokens[$t].EOL;
             }
+//            var_dump($tokens);
 
-            /**
-             * get class objects from constructor
-             * if there any
-             */
-            $classesToCheck[] = $this->getFromConstructor($class);
+//            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 
-            $methods = $class->getMethods();
-            $functions = $this->getFunctions($class, $namespace);
-            foreach ($functions as $fn){
-                echo "Function name:: ".$fn['name']."<br><br>";
-            }
+            /*  if ($namespace) {
+                  $class = new \ReflectionClass($namespace);
+  //                echo "CLASS:: ".$class."\n\n";
+                  $this->parentClass($class);
+                  echo "ParentClassNamespace:: " . $this->parentClassNamespace . "<br><br>";
+                  echo "ParentClassName:: " . $this->parentClassName . "<br><br>";
+  //                $this->classStore($namespace, $filePath);
+              }*/
 
-          /*  $this->checkFiles['classes'][] = [
-                'namespace' => $namespace,
-                'className' => $class->getShortName(),
-                'isInterface' => $class->isInterface(),
-                'isTrait' => $class->isTrait(),
-                'parentClassNameSpace' => $this->parentClassNamespace,
-                'parentClassName' => $this->parentClassName,
-                'methods' => $functions
-            ];*/
+            /*foreach ($tokens as $token) {
+                for($i=0; $i< sizeof($token); $i++){
+                    echo "Line: ".$i.":: ".$token[$i]."<br>";
+                }
+                $tokenName = token_name(intval($token[0]));
+//                echo 'Token name:: '.$token[0][1]."<br><br>";
+                if (is_array($token) && $tokenName == 'T_FUNCTION') {
+                    echo "<br>Line {$token[2]}: ", token_name($token[0]), "::  ('{$token[1]}')", "</br>";
+                }
+            }*/
 
         }
 
-      /**
-       * TESTING PART
-       */
+        /**
+         * get class objects from constructor
+         * if there any
+         */
+        /*  $classesToCheck[] = $this->getFromConstructor($class);
+
+          $methods = $class->getMethods();
+          $functions = $this->getFunctions($class, $namespace);
+          foreach ($functions as $fn){
+              echo "Function name:: ".$fn['name']."<br><br>";
+          }*/
+
+        /*  $this->checkFiles['classes'][] = [
+              'namespace' => $namespace,
+              'className' => $class->getShortName(),
+              'isInterface' => $class->isInterface(),
+              'isTrait' => $class->isTrait(),
+              'parentClassNameSpace' => $this->parentClassNamespace,
+              'parentClassName' => $this->parentClassName,
+              'methods' => $functions
+          ];*/
+
     }
 
-    public function getFromConstructor($class){
+    /**
+     * TESTING PART
+     */
+
+    function getFromConstructor($class)
+    {
         $constructor = $class->getConstructor();
 //        echo "Constructor class:: ".$constructor->class. "<br> <br>";
 //        echo "Is equal:: ".($class->getName() === $constructor->class). " <br> <br>";
 //            var_dump($constructor->getParameters());
-        if ($class->getName() === $constructor->class){
+        if ($class->getName() === $constructor->class) {
             $parameters = $constructor->getParameters();
-            echo "Constructor Param:: ".$constructor->getNumberOfParameters()."<br><br>";
-            foreach ($parameters as $param){
-                echo "Param: <br>". $param->name;
+            echo "Constructor Param:: " . $constructor->getNumberOfParameters() . "<br><br>";
+            foreach ($parameters as $param) {
+                echo "Param: <br>" . $param->name;
 //                var_dump($param);
                 echo "<br>";
-                echo "Param: <br>". $param->getType()."<br>";
+                echo "Param: <br>" . $param->getType() . "<br>";
 //                echo "Param: <br>";
             }
 
