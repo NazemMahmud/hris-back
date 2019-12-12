@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Setup;
 
+use App\Models\Employee\Employee;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Setup\OrganizationBandCollection;
@@ -15,10 +16,12 @@ class OrganizationBandController extends Controller
      * @var OrganizationBand
      */
     private $organizationBand;
+    private $employee;
 
-    function __construct(OrganizationBand $organizationBand)
+    function __construct(OrganizationBand $organizationBand, Employee $employee)
     {
         $this->organizationBand = $organizationBand;
+//        $this->employee = $employee;
     }
 
     /**
