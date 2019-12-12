@@ -3,7 +3,9 @@
 namespace App\Helpers;
 
 use function foo\func;
-define ('EOL', "<br><br>");
+
+define('EOL', "<br><br>");
+
 class DeadCodeAnalyzer
 {
     /**
@@ -137,12 +139,12 @@ class DeadCodeAnalyzer
         $classFlag = 0;
         for ($i = 0; $i < $count; $i++) {
             if ($tokens[$i] instanceof \PHP_Token_NAMESPACE) {
-                echo "ASShole{$i}:: ".$tokens[$i].EOL;
+//                echo "ASShole{$i}:: ".$tokens[$i].EOL;
                 $namespace = $tokens[$i]->getName();
 //                $this->classStore($namespace);
 //                echo "Namespace: ".$tokens[$i].":: ".$namespace."\n\n";
             } elseif ($tokens[$i] instanceof \PHP_Token_CLASS) {
-                echo "AShole{$i}:: ".$tokens[$i].EOL;
+//                echo "AShole{$i}:: ".$tokens[$i].EOL;
                 $class = $tokens[$i]->getName();
                 if ($namespace != '') {
                     $class = $namespace . DIRECTORY_SEPARATOR . $class;
@@ -245,18 +247,35 @@ class DeadCodeAnalyzer
         /**
          * MAIN PART
          */
-        $classesToCheck = [];
+//        $classesToCheck = [];
         foreach ($files as $filePath) {
             echo $filePath . " ASH HSSH <br>";
             $namespace = $this->getNameSpace($filePath);
             echo "NAMESPACE:: " . $namespace . "<br><br>";
             $code = file_get_contents($filePath);
             $tokens = new \PHP_Token_Stream($code);
+            /*  FOR TEST PURPOSE */
+            /*  $tokens = token_get_all($code);
+            foreach ($tokens as $token) {
+                if (is_array($token)) {
+                    echo "Line {$token[2]}: ", token_name($token[0]), " ('{$token[1]}')", "<br><br>";
+//                    if(token_name($token[0]) == T_OPEN_CU){ echo "WHATTTTT !!! YESS <br><br>"; }
+                }
+            }*/
+
             $totalToken = count($tokens);
-            for( $t = 0; $t < $totalToken; $t++){
-                echo "TokenI:: ".$tokens[$t].EOL;
+            $classesToCheck = [];
+
+            for ($t = 0; $t < $totalToken; $t++) {
+//                echo "TokenI:: " . $tokens[$t] . EOL;
+                if ($tokens[$t] == "__construct") {
+                    $classesToCheck [] = $this->getFromDI($tokens, $t);
+                    foreach ($classesToCheck as $classes) {
+                        foreach ($classes as $class)
+                            echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
+                    }
+                }
             }
-//            var_dump($tokens);
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 
@@ -304,6 +323,58 @@ class DeadCodeAnalyzer
               'methods' => $functions
           ];*/
 
+    }
+
+    function getFromDI($tokens, $startPosition)
+    {
+        $classToCheck = [];
+        $className = $objectString = "";
+        $index = $startPosition;
+        $paramFlag = $classFlag = $indexCounter = 0;
+        while ($index) {
+            $index++;
+            if ($tokens[$index] == "}") { // It means end of constructor
+                break;
+            }
+            if ($tokens[$index] == ")") { // end of constructor parameters
+                $paramFlag = 1;
+            }
+            if (!$paramFlag) {
+                // get class name
+                if (!$classFlag && $tokens[$index] instanceof \PHP_Token_STRING) {
+                    $className = $tokens[$index];
+                    $classFlag++;
+                }
+                // get corresponding object name
+                if ($classFlag && $tokens[$index] instanceof \PHP_Token_VARIABLE) {
+                    $classFlag--;
+                    $classToCheck [] = [
+                        "className" => $className,
+                        "object" => $tokens[$index]
+                    ];
+                }
+            }
+            // inside of the constructor
+            if ($paramFlag) {
+                $indexCounter = $index; // At first it indicates => "{"
+                if ($tokens[$index] == '$this') { // here i dont have to think aboumt comments, bcoz if its a comment it will never get "$this"
+                    $objectString .= $tokens[$index] . $tokens[$index + 1] . $tokens[$index + 2];
+//                    $index = $index + 2;
+                }
+                if ($tokens[$index] instanceof \PHP_Token_VARIABLE && $tokens[$index] != '$this') { // because $this is also a variable
+                    foreach ($classToCheck as $key => $value) {
+                        if(!strcmp($classToCheck[$key]['object'], $tokens[$index]) ) {
+                            $classToCheck[$key]['object'] = $objectString;
+                            $objectString = "" ;
+                        }
+                    }
+                }
+            }
+        }
+        return $classToCheck;
+//        foreach ($classToCheck as $classes){
+//            echo "BB Class: ".$classes['className']." Object: ".$classes['object']."<br>";
+//        }
     }
 
     /**
