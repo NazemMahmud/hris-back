@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Setup;
 
-use App\Models\Employee\Employee;
+use App\Models\Employee\Employeea as Emp;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Setup\OrganizationBandCollection;

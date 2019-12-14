@@ -17,6 +17,7 @@ class DeadCodeAnalyzer
     protected $parentClassNamespace;
     protected $parentClassName;
     protected $methods;
+    private $namespaceLists;
     /**
      * @var array
      * the folder and files which will be ignored for dead code checking
@@ -253,6 +254,33 @@ class DeadCodeAnalyzer
         echo "<br>";
     }
 
+    public function getNamespaceLists($tokens, $totalToken){
+        for ($item = 0; $item < $totalToken; $item++) {
+            $itemCounter = 0;
+            if($tokens[$item] == "use" && $tokens[$item+1] instanceof \PHP_Token_WHITESPACE){
+                $itemCounter++;
+                $namespaceString = "";
+                $replacedNamespaceString = "";
+                while ($tokens[$itemCounter] != ";"){
+                    if($tokens[$itemCounter] == "as"){
+                        $replacedNamespaceString  = $tokens[$itemCounter+2];
+                        break;
+                    }
+                    $namespaceString.=$tokens[$itemCounter];
+                }
+                $this->namespaceLists [] = [
+                    'namespace' => $namespaceString,
+                    'replaced_namespace' => $replacedNamespaceString,
+                ];
+            }
+            $item = $itemCounter;
+            // if class starts then there will be no new namespace to add
+            if($tokens[$item] == "class") break;
+        }
+        var_dump($this->namespaceLists);
+        return true;
+    }
+
     /**
      * @param $files
      * @throws \ReflectionException
@@ -282,19 +310,21 @@ class DeadCodeAnalyzer
             /****************************  FOR TEST PURPOSE ***********************/
             $totalToken = count($tokens);
             $classesToCheck = [];
+            $usedClasses = $this->getNamespaceLists($tokens, $totalToken);
             /**
              * 1. From DI get Class and Object name/s to check
-             * 2. From self::
+             * 2. From self:: [done]
+             * 3. For static method or direct method call ==> ClassName::method()
              */
-            for ($t = 0; $t < $totalToken; $t++) {
-                //                echo "TokenI:: " . $tokens[$t] . EOL;
-                /* if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
+           /* for ($t = 0; $t < $totalToken; $t++) {
+//                                echo "TokenI:: " . $tokens[$t] . EOL;
+                 if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
                      $classesToCheck [] = $this->getFromDI($tokens, $t);
                      foreach ($classesToCheck as $classes) {
                          foreach ($classes as $class)
                              echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
                      }
-                 }*/
+                 }
 
                 if ($tokens[$t] == "self" && $tokens[$t + 1] == "::") {
                     echo "TRUE<br>" . $tokens[$t + 2] . "<br><br>";
@@ -303,7 +333,12 @@ class DeadCodeAnalyzer
                     continue;
                 }
 
-            }
+                if($tokens[$t] == "::" && $tokens[$t-1] != "self"){
+
+                }
+
+
+            }*/
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 
@@ -353,6 +388,9 @@ class DeadCodeAnalyzer
 
     }
 
+    function classNameCheckFromNameSpace($className){
+
+    }
     function getFromDI($tokens, $startPosition)
     {
         $classToCheck = [];
