@@ -162,13 +162,29 @@ class DeadCodeAnalyzer
      */
     public function storeFileInfo($files)
     {
-        foreach ($files as $filePath) {
+        /********************** TEST CODE *********************************************/
+        $all = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
+        $filess = [];
+        $filess [] = $all;
+        /********************** TEST CODE *********************************************/
+        foreach ($filess as $filePath) {
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
             $namespace = $this->getNameSpace($filePath);
             if ($namespace)
                 $this->classStore($namespace, $filePath);
 
         }
+        /********************** TEST CODE *********************************************/
+        $allClasses = $this->checkFiles['classes'];
+        var_dump($allClasses);
+//        foreach ($this->checkFiles['classes'] as $class) {
+//            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
+//            $namespace = $this->getNameSpace($filePath);
+//            if ($namespace)
+//                $this->classStore($namespace, $filePath);
+//
+//        }
+        /********************** TEST CODE *********************************************/
         /*  $tokens = token_get_all($filee);
           $commentTokens = FileHelpers::commentTokens();
           $counter = 0;*/
@@ -249,32 +265,44 @@ class DeadCodeAnalyzer
          */
 //        $classesToCheck = [];
         foreach ($files as $filePath) {
-            echo $filePath . " ASH HSSH <br>";
+//            echo $filePath . " ASH HSSH <br>";
             $namespace = $this->getNameSpace($filePath);
-            echo "NAMESPACE:: " . $namespace . "<br><br>";
+            echo "<br><br>NAMESPACE:: " . $namespace . "<br><br>";
             $code = file_get_contents($filePath);
             $tokens = new \PHP_Token_Stream($code);
-            /*  FOR TEST PURPOSE */
-            /*  $tokens = token_get_all($code);
+            /****************************  FOR TEST PURPOSE ***********************/
+            /*
+            $tokens = token_get_all($code);
             foreach ($tokens as $token) {
                 if (is_array($token)) {
                     echo "Line {$token[2]}: ", token_name($token[0]), " ('{$token[1]}')", "<br><br>";
 //                    if(token_name($token[0]) == T_OPEN_CU){ echo "WHATTTTT !!! YESS <br><br>"; }
                 }
             }*/
-
+            /****************************  FOR TEST PURPOSE ***********************/
             $totalToken = count($tokens);
             $classesToCheck = [];
-
+            /**
+             * 1. From DI get Class and Object name/s to check
+             * 2. From self::
+             */
             for ($t = 0; $t < $totalToken; $t++) {
-//                echo "TokenI:: " . $tokens[$t] . EOL;
-                if ($tokens[$t] == "__construct") {
-                    $classesToCheck [] = $this->getFromDI($tokens, $t);
-                    foreach ($classesToCheck as $classes) {
-                        foreach ($classes as $class)
-                            echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
-                    }
+                //                echo "TokenI:: " . $tokens[$t] . EOL;
+                /* if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
+                     $classesToCheck [] = $this->getFromDI($tokens, $t);
+                     foreach ($classesToCheck as $classes) {
+                         foreach ($classes as $class)
+                             echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
+                     }
+                 }*/
+
+                if ($tokens[$t] == "self" && $tokens[$t + 1] == "::") {
+                    echo "TRUE<br>" . $tokens[$t + 2] . "<br><br>";
+                    $this->selfMethodsCheck($namespace, $tokens[$t + 2]);
+                    $t += 2;
+                    continue;
                 }
+
             }
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
@@ -363,9 +391,9 @@ class DeadCodeAnalyzer
                 }
                 if ($tokens[$index] instanceof \PHP_Token_VARIABLE && $tokens[$index] != '$this') { // because $this is also a variable
                     foreach ($classToCheck as $key => $value) {
-                        if(!strcmp($classToCheck[$key]['object'], $tokens[$index]) ) {
+                        if (!strcmp($classToCheck[$key]['object'], $tokens[$index])) {
                             $classToCheck[$key]['object'] = $objectString;
-                            $objectString = "" ;
+                            $objectString = "";
                         }
                     }
                 }
@@ -375,6 +403,28 @@ class DeadCodeAnalyzer
 //        foreach ($classToCheck as $classes){
 //            echo "BB Class: ".$classes['className']." Object: ".$classes['object']."<br>";
 //        }
+    }
+
+    function selfMethodsCheck($namespace, $selfMethodName)
+    {
+        $class = new \ReflectionClass($namespace);
+        $className = $class->getShortName();
+        $flag = 0;
+        foreach ($this->checkFiles['classes'] as &$class) {
+            if ($flag) break;
+            if ($namespace == $class["namespace"] &&
+                $className ==  $class["className"]) {
+                foreach ($class["methods"] as &$method) {
+                    if ($method["name"] == $selfMethodName) {
+                        $flag = 1;
+                        $method["flag"] = 1;
+                        break;
+                    }
+                }
+            }
+
+        }
+        var_dump($this->checkFiles);
     }
 
     /**

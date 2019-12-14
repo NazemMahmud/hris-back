@@ -94,4 +94,9 @@ class OrganizationBandController extends Controller
     {
         return new OrganizationBandCollection($this->organizationBand->searchResource($searchBy));
     }
+
+    public function selfTest(){
+        $data = self::show(2);
+        var_dump($data);
+    }
 }
