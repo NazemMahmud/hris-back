@@ -256,24 +256,26 @@ class DeadCodeAnalyzer
 
     public function getNamespaceLists($tokens, $totalToken){
         for ($item = 0; $item < $totalToken; $item++) {
-            $itemCounter = 0;
-            if($tokens[$item] == "use" && $tokens[$item+1] instanceof \PHP_Token_WHITESPACE){
-                $itemCounter++;
-                $namespaceString = "";
-                $replacedNamespaceString = "";
-                while ($tokens[$itemCounter] != ";"){
+            if($tokens[$item] == "use" && $tokens[$item+1] instanceof \PHP_Token_WHITESPACE &&
+                ($tokens[$item+2] == "App" || ($tokens[$item+2] == "\\" && $tokens[$item+3] == "App" ))){ // only app directory namespace.
+                $namespaceString = $replacedNamespaceString = "";
+                for($itemCounter = $item + 2 ; $tokens[$itemCounter] != ";" ; $itemCounter++ ){
+                    // wont store first separator in namespace AND no space will be concat in the namespace path
+                    if( ($itemCounter == $item + 2 && $tokens[$itemCounter] == "\\" ) || $tokens[$itemCounter] == " ") continue;
                     if($tokens[$itemCounter] == "as"){
-                        $replacedNamespaceString  = $tokens[$itemCounter+2];
+                        $replacedNamespaceString.= $tokens[$itemCounter+2];
+                        echo "Replace !: ".$replacedNamespaceString.EOL;
                         break;
                     }
                     $namespaceString.=$tokens[$itemCounter];
                 }
+                echo "namespace::! ".$namespaceString.EOL;
+                $item = $itemCounter;
                 $this->namespaceLists [] = [
                     'namespace' => $namespaceString,
                     'replaced_namespace' => $replacedNamespaceString,
                 ];
             }
-            $item = $itemCounter;
             // if class starts then there will be no new namespace to add
             if($tokens[$item] == "class") break;
         }
