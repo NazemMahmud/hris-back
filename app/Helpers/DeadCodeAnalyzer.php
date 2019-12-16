@@ -233,11 +233,6 @@ class DeadCodeAnalyzer
         $this->inspectFiles($all);
     }
 
-    public function staticAndInternalCheck($files)
-    {
-
-    }
-
     public function interfacePropertyCheck($files)
     {
 
@@ -254,33 +249,130 @@ class DeadCodeAnalyzer
         echo "<br>";
     }
 
-    public function getNamespaceLists($tokens, $totalToken){
+    public function getNamespaceLists($tokens, $totalToken)
+    {
+        $this->namespaceLists = [];
         for ($item = 0; $item < $totalToken; $item++) {
-            if($tokens[$item] == "use" && $tokens[$item+1] instanceof \PHP_Token_WHITESPACE &&
-                ($tokens[$item+2] == "App" || ($tokens[$item+2] == "\\" && $tokens[$item+3] == "App" ))){ // only app directory namespace.
+            if ($tokens[$item] == "use" && $tokens[$item + 1] instanceof \PHP_Token_WHITESPACE &&
+                ($tokens[$item + 2] == "App" || ($tokens[$item + 2] == "\\" && $tokens[$item + 3] == "App"))) { // only app directory namespace.
                 $namespaceString = $replacedNamespaceString = "";
-                for($itemCounter = $item + 2 ; $tokens[$itemCounter] != ";" ; $itemCounter++ ){
+                for ($itemCounter = $item + 2; $tokens[$itemCounter] != ";"; $itemCounter++) {
                     // wont store first separator in namespace AND no space will be concat in the namespace path
-                    if( ($itemCounter == $item + 2 && $tokens[$itemCounter] == "\\" ) || $tokens[$itemCounter] == " ") continue;
-                    if($tokens[$itemCounter] == "as"){
-                        $replacedNamespaceString.= $tokens[$itemCounter+2];
-                        echo "Replace !: ".$replacedNamespaceString.EOL;
+                    if (($itemCounter == $item + 2 && $tokens[$itemCounter] == "\\") || $tokens[$itemCounter] == " ") continue;
+                    if ($tokens[$itemCounter] == "as") {
+                        $replacedNamespaceString .= $tokens[$itemCounter + 2];
                         break;
                     }
-                    $namespaceString.=$tokens[$itemCounter];
+                    $namespaceString .= $tokens[$itemCounter];
                 }
-                echo "namespace::! ".$namespaceString.EOL;
+
                 $item = $itemCounter;
+                $class = new \ReflectionClass($namespaceString);
                 $this->namespaceLists [] = [
                     'namespace' => $namespaceString,
+                    'className' => $class->getShortName(),
                     'replaced_namespace' => $replacedNamespaceString,
                 ];
             }
             // if class starts then there will be no new namespace to add
-            if($tokens[$item] == "class") break;
+            if ($tokens[$item] == "class") break;
         }
-        var_dump($this->namespaceLists);
-        return true;
+    }
+
+    function getRealClassName($className)
+    {
+        foreach ($this->namespaceLists as $namespace) {
+            if ($namespace["className"] == $className || $namespace["replaced_namespace"] == $className) {
+                // namespace shoho return kortesi coz static method check er shomoy namespace diye oi file e jeno check korte pari
+                return [
+                    "namespace" => $namespace["namespace"],
+                    "className" => $namespace["className"]
+                ];
+            }
+        }
+        return;
+    }
+
+    function getFromDI($tokens, $startPosition)
+    { // here should be another condition. if class not found namespacelist, then we wont check that class
+        $classToCheck = [];
+        $className = $objectString = "";
+        $index = $startPosition;
+        $paramFlag = $classFlag = $indexCounter = 0;
+        while ($index) {
+            $index++;
+            if ($tokens[$index] == "}") { // It means end of constructor
+                break;
+            }
+            if ($tokens[$index] == ")") { // end of constructor parameters
+                $paramFlag = 1;
+            }
+            if (!$paramFlag) {
+                // get class name
+                if (!$classFlag && $tokens[$index] instanceof \PHP_Token_STRING) {
+                    $className = $this->getRealClassName($tokens[$index]);
+                    $classFlag++;
+                }
+                // get corresponding object name
+                if ($classFlag && $tokens[$index] instanceof \PHP_Token_VARIABLE) {
+                    $classFlag--;
+                    // by any chance 2ta class er name same hote pare, but namespace hobe na, so unique identifier namespace lagbe
+                    $classToCheck [] = [
+                        "namespace" => $className["namespace"],
+                        "className" => $className["className"],
+                        "object" => $tokens[$index]
+                    ];
+                }
+            }
+            // inside of the constructor
+            if ($paramFlag) {
+                $indexCounter = $index; // At first it indicates => "{"
+                if ($tokens[$index] == '$this') { // here i dont have to think aboumt comments, bcoz if its a comment it will never get "$this"
+                    $objectString .= $tokens[$index] . $tokens[$index + 1] . $tokens[$index + 2];
+//                    $index = $index + 2;
+                }
+                if ($tokens[$index] instanceof \PHP_Token_VARIABLE && $tokens[$index] != '$this') { // because $this is also a variable
+                    foreach ($classToCheck as $key => $value) {
+                        if (!strcmp($classToCheck[$key]['object'], $tokens[$index])) {
+                            $classToCheck[$key]['object'] = $objectString;
+                            $objectString = "";
+                        }
+                    }
+                }
+            }
+        }
+        return $classToCheck;
+//        foreach ($classToCheck as $classes){
+//            echo "BB Class: ".$classes['className']." Object: ".$classes['object']."<br>";
+//        }
+    }
+
+    function updateMethodFlag($namespace, $methodName){
+        // here is a problem, interface and parent class is not checked yet.
+        $class = new \ReflectionClass($namespace);
+        $className = $class->getShortName();
+        $flag = 0;
+        foreach ($this->checkFiles['classes'] as &$class) {
+            if ($flag) break;
+            if ($namespace == $class["namespace"] &&
+                $className == $class["className"]) {
+                foreach ($class["methods"] as &$method) {
+                    if ($method["name"] == $methodName) {
+                        $flag = 1;
+                        $method["flag"] = 1;
+                        break;
+                    }
+                }
+            }
+
+        }
+        var_dump($this->checkFiles);
+    }
+
+    public function staticMethodsCheck($className, $methodName)
+    {
+        $class = $this->getRealClassName($className);
+        $this->updateMethodFlag($class["namespace"], $methodName);
     }
 
     /**
@@ -312,35 +404,50 @@ class DeadCodeAnalyzer
             /****************************  FOR TEST PURPOSE ***********************/
             $totalToken = count($tokens);
             $classesToCheck = [];
-            $usedClasses = $this->getNamespaceLists($tokens, $totalToken);
+            $this->getNamespaceLists($tokens, $totalToken); // get used Classes from the file use namespaces
             /**
              * 1. From DI get Class and Object name/s to check
              * 2. From self:: [done]
              * 3. For static method or direct method call ==> ClassName::method()
+             * 4. using new keyword (creating new object / instance of that class)
              */
-           /* for ($t = 0; $t < $totalToken; $t++) {
+            for ($t = 0; $t < $totalToken; $t++) {
 //                                echo "TokenI:: " . $tokens[$t] . EOL;
-                 if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
-                     $classesToCheck [] = $this->getFromDI($tokens, $t);
-                     foreach ($classesToCheck as $classes) {
-                         foreach ($classes as $class)
-                             echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
-                     }
-                 }
-
+                // storing class and object from constructor i.e. Dependency injection
+                if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
+                    $classesToCheck [] = $this->getFromDI($tokens, $t);
+                    foreach ($classesToCheck as $classes) {
+                        foreach ($classes as $class)
+                            echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
+                    }
+                }
+                // self method call
                 if ($tokens[$t] == "self" && $tokens[$t + 1] == "::") {
                     echo "TRUE<br>" . $tokens[$t + 2] . "<br><br>";
-                    $this->selfMethodsCheck($namespace, $tokens[$t + 2]);
+                    $this->updateMethodFlag($namespace, $tokens[$t + 2]);
                     $t += 2;
                     continue;
                 }
 
+                // static method call
                 if($tokens[$t] == "::" && $tokens[$t-1] != "self"){
-
+                    $this->staticMethodsCheck($tokens[$t-1], $tokens[$t+1]);
                 }
 
-
-            }*/
+                // new object create check
+                if($tokens[$t] == "new" && $tokens[$t+1] instanceof \PHP_Token_STRING && $tokens[$t+2] == "("){
+                    $variable = $t;
+                    while(!($tokens[$variable] instanceof \PHP_Token_VARIABLE) ){
+                        $variable--;
+                    }
+                    $c = $this->getRealClassName($tokens[$t+1]);
+                    $classToCheck [] = [
+                        "namespace" => $c["namespace"],
+                        "className" => $c["className"],
+                        "object" => $tokens[$variable]
+                    ];
+                }
+            }
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 
@@ -390,81 +497,9 @@ class DeadCodeAnalyzer
 
     }
 
-    function classNameCheckFromNameSpace($className){
-
-    }
-    function getFromDI($tokens, $startPosition)
+    function classNameCheckFromNameSpace($className)
     {
-        $classToCheck = [];
-        $className = $objectString = "";
-        $index = $startPosition;
-        $paramFlag = $classFlag = $indexCounter = 0;
-        while ($index) {
-            $index++;
-            if ($tokens[$index] == "}") { // It means end of constructor
-                break;
-            }
-            if ($tokens[$index] == ")") { // end of constructor parameters
-                $paramFlag = 1;
-            }
-            if (!$paramFlag) {
-                // get class name
-                if (!$classFlag && $tokens[$index] instanceof \PHP_Token_STRING) {
-                    $className = $tokens[$index];
-                    $classFlag++;
-                }
-                // get corresponding object name
-                if ($classFlag && $tokens[$index] instanceof \PHP_Token_VARIABLE) {
-                    $classFlag--;
-                    $classToCheck [] = [
-                        "className" => $className,
-                        "object" => $tokens[$index]
-                    ];
-                }
-            }
-            // inside of the constructor
-            if ($paramFlag) {
-                $indexCounter = $index; // At first it indicates => "{"
-                if ($tokens[$index] == '$this') { // here i dont have to think aboumt comments, bcoz if its a comment it will never get "$this"
-                    $objectString .= $tokens[$index] . $tokens[$index + 1] . $tokens[$index + 2];
-//                    $index = $index + 2;
-                }
-                if ($tokens[$index] instanceof \PHP_Token_VARIABLE && $tokens[$index] != '$this') { // because $this is also a variable
-                    foreach ($classToCheck as $key => $value) {
-                        if (!strcmp($classToCheck[$key]['object'], $tokens[$index])) {
-                            $classToCheck[$key]['object'] = $objectString;
-                            $objectString = "";
-                        }
-                    }
-                }
-            }
-        }
-        return $classToCheck;
-//        foreach ($classToCheck as $classes){
-//            echo "BB Class: ".$classes['className']." Object: ".$classes['object']."<br>";
-//        }
-    }
 
-    function selfMethodsCheck($namespace, $selfMethodName)
-    {
-        $class = new \ReflectionClass($namespace);
-        $className = $class->getShortName();
-        $flag = 0;
-        foreach ($this->checkFiles['classes'] as &$class) {
-            if ($flag) break;
-            if ($namespace == $class["namespace"] &&
-                $className ==  $class["className"]) {
-                foreach ($class["methods"] as &$method) {
-                    if ($method["name"] == $selfMethodName) {
-                        $flag = 1;
-                        $method["flag"] = 1;
-                        break;
-                    }
-                }
-            }
-
-        }
-        var_dump($this->checkFiles);
     }
 
     /**
