@@ -16,6 +16,7 @@ class DeadCodeAnalyzer
 
     protected $parentClassNamespace;
     protected $parentClassName;
+    protected $parents;
     protected $methods;
     private $namespaceLists;
     /**
@@ -75,10 +76,15 @@ class DeadCodeAnalyzer
 
     public function parentClass($class)
     {
-        if ($class->getParentClass()) {
-            $this->parentClassNamespace = $class->getParentClass()->name;
+        $this->parents = [];
+        if ($parent = $class->getParentClass()) {
+            $this->parentClassNamespace = $parent->name;
             $parentClass = new \ReflectionClass($this->parentClassNamespace);
             $this->parentClassName = $parentClass->getShortName();
+            $this->parents [] = [
+                'parentClassNamespace' => $this->parentClassNamespace,
+                'parentClassName' => $this->parentClassName
+            ];
         }
     }
 
@@ -124,9 +130,10 @@ class DeadCodeAnalyzer
             'className' => $class->getShortName(),
             'isInterface' => $class->isInterface(),
             'isTrait' => $class->isTrait(),
-            'parentClassNameSpace' => $this->parentClassNamespace,
-            'parentClassName' => $this->parentClassName,
-            'methods' => $functions
+            'parentClasses' => $this->parents,
+            'methods' => $functions,
+            'interface' => [],
+            'traits' => []
         ];
 //        var_dump($this->checkFiles['classes']);
 //        echo "<br><br>";
@@ -165,6 +172,7 @@ class DeadCodeAnalyzer
     {
         /********************** TEST CODE *********************************************/
         $all = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
+//        $all = app_path() . "\User.php";
         $filess = [];
         $filess [] = $all;
         /********************** TEST CODE *********************************************/
@@ -177,6 +185,7 @@ class DeadCodeAnalyzer
         }
         /********************** TEST CODE *********************************************/
         $allClasses = $this->checkFiles['classes'];
+        echo "dump".EOL;
         var_dump($allClasses);
 //        foreach ($this->checkFiles['classes'] as $class) {
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
@@ -375,6 +384,17 @@ class DeadCodeAnalyzer
         $this->updateMethodFlag($class["namespace"], $methodName);
     }
 
+    function backTrackMethodsCheck($classToCheck, $totalToken, $tokens){
+
+        for($index = 0; $index < $totalToken; $index++){
+            // for dependency injection object will be like, $this->sds->method(
+            if($tokens[$index] == '$this' && $tokens[$index+1] == '->' && $tokens[$index+2] instanceof \PHP_Token_STRING){
+                $obj = $tokens[$index].$tokens[$index+1].$tokens[$index+2];
+            }
+            // for new keyword, will be like, $object->method(
+        }
+    }
+
     /**
      * @param $files
      * @throws \ReflectionException
@@ -448,6 +468,8 @@ class DeadCodeAnalyzer
                     ];
                 }
             }
+
+            $this->backTrackMethodsCheck($classToCheck, $totalToken, $tokens);
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 
