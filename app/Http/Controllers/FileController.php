@@ -66,9 +66,9 @@ class FileController extends Controller
     public function findDeadCodes()
     {
         $this->helper = new DeadCodeAnalyzer();
-        $allFiles = $this->helper->getAllAppDirectoryFiles(app_path());
+//        $allFiles = $this->helper->getAllAppDirectoryFiles(app_path());
         $this->helper->initiate();
-        $this->helper->storeFileInfo($allFiles);
+//        $this->helper->storeFileInfo($allFiles);
         $result = $this->helper->getDeadCodes();
 //        return $allFiles;
     }
