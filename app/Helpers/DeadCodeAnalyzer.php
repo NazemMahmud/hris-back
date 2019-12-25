@@ -19,6 +19,9 @@ class DeadCodeAnalyzer
     protected $parents;
     protected $methods;
     private $namespaceLists;
+    private $constructorEndTokenPosition;
+
+    public $lastToken;
     /**
      * @var array
      * the folder and files which will be ignored for dead code checking
@@ -311,6 +314,7 @@ class DeadCodeAnalyzer
         while ($index) {
             $index++;
             if ($tokens[$index] == "}") { // It means end of constructor
+                $this->constructorEndTokenPosition = $index;
                 break;
             }
             if ($tokens[$index] == ")") { // end of constructor parameters
@@ -338,9 +342,10 @@ class DeadCodeAnalyzer
                 $indexCounter = $index; // At first it indicates => "{"
                 if ($tokens[$index] == '$this') { // here i dont have to think aboumt comments, bcoz if its a comment it will never get "$this"
                     $objectString .= $tokens[$index] . $tokens[$index + 1] . $tokens[$index + 2];
-//                    $index = $index + 2;
+                    $index = $index + 2;
                 }
-                if ($tokens[$index] instanceof \PHP_Token_VARIABLE && $tokens[$index] != '$this') { // because $this is also a variable
+                if ($tokens[$index] instanceof \PHP_Token_VARIABLE && $tokens[$index] != '$this') {
+                    // because $this is also a variable
                     foreach ($classToCheck as $key => $value) {
                         if (!strcmp($classToCheck[$key]['object'], $tokens[$index])) {
                             $classToCheck[$key]['object'] = $objectString;
@@ -350,6 +355,11 @@ class DeadCodeAnalyzer
                 }
             }
         }
+        /**
+         * A work needs to be done here,
+         * jodi constructor er vitore model er DI use na hoy,
+         * tahole oita array theke remove korte hobe
+         */
         return $classToCheck;
 //        foreach ($classToCheck as $classes){
 //            echo "BB Class: ".$classes['className']." Object: ".$classes['object']."<br>";
@@ -361,6 +371,7 @@ class DeadCodeAnalyzer
         $class = new \ReflectionClass($namespace);
         $className = $class->getShortName();
         $flag = 0;
+        $thisClass = 0;
         foreach ($this->checkFiles['classes'] as &$class) {
             if ($flag) break;
             if ($namespace == $class["namespace"] &&
@@ -368,14 +379,21 @@ class DeadCodeAnalyzer
                 foreach ($class["methods"] as &$method) {
                     if ($method["name"] == $methodName) {
                         $flag = 1;
+                        $thisClass = 1;
                         $method["flag"] = 1;
+                        // return namespace and method name which flag is set to 1; so that from classesTocheck make empty
                         break;
                     }
                 }
             }
 
         }
-        var_dump($this->checkFiles);
+        if(!$thisClass){
+            // if this class is still = 0; that means method is not in this class, its in its parent classes,
+            // either in parent, or in interfaces
+            // go there, gooooooooooooooooooo
+        }
+//        var_dump($this->checkFiles);
     }
 
     public function staticMethodsCheck($className, $methodName)
@@ -384,15 +402,26 @@ class DeadCodeAnalyzer
         $this->updateMethodFlag($class["namespace"], $methodName);
     }
 
-    function backTrackMethodsCheck($classToCheck, $totalToken, $tokens){
+//    function backTrackMethodsCheck($classToCheck, $totalToken, $tokens){
+    function backTrackMethodsCheck($classArrayToCheck, $object, $methodName){
+//        $classToCheck [] = [
+//            "namespace" => $className["namespace"],
+//            "className" => $className["className"],
+//            "object" => $tokens[$index]
+//        ];
+        foreach ($classArrayToCheck as &$class){
+            if($class['object'] == $object){
+                $result = $this->updateMethodFlag($class['namespace'], $methodName);
+            }
+        }
 
-        for($index = 0; $index < $totalToken; $index++){
+        /*for($index = 0; $index < $totalToken; $index++){
             // for dependency injection object will be like, $this->sds->method(
             if($tokens[$index] == '$this' && $tokens[$index+1] == '->' && $tokens[$index+2] instanceof \PHP_Token_STRING){
                 $obj = $tokens[$index].$tokens[$index+1].$tokens[$index+2];
             }
             // for new keyword, will be like, $object->method(
-        }
+        }*/
     }
 
     /**
@@ -440,6 +469,8 @@ class DeadCodeAnalyzer
                         foreach ($classes as $class)
                             echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
                     }
+                    $t = $this->constructorEndTokenPosition; // so that amar abar eshe consructor e dhukte na hoy,
+                    // r egula variable o read korte na hoy
                 }
                 // self method call
                 if ($tokens[$t] == "self" && $tokens[$t + 1] == "::") {
@@ -467,9 +498,31 @@ class DeadCodeAnalyzer
                         "object" => $tokens[$variable]
                     ];
                 }
-            }
 
-            $this->backTrackMethodsCheck($classToCheck, $totalToken, $tokens);
+                // now for backtrack method to method flag check the $classesToCheck array
+                if($tokens[$t] instanceof \PHP_Token_VARIABLE){
+                    $object = "";
+
+                    // for $this, from DI
+                    if($tokens[$t] == '$this' && $tokens[$t+1] == '->' &&
+                        $tokens[$t+2] instanceof \PHP_Token_STRING){
+                        $object.= $tokens[$t].$tokens[$t+1].$tokens[$t+2];
+                        $this->lastToken = $t+3;
+                    }
+                    // another local variable for new keyword
+                    else{
+                        $object.=$tokens[$t];
+                        $this->lastToken = $t+1;
+                    }
+
+                    if($tokens[$this->lastToken+1] == '->' &&
+                        $tokens[$this->lastToken+2] instanceof \PHP_Token_STRING && $tokens[$this->lastToken+3] == '('){
+                        $this->backTrackMethodsCheck($classToCheck, $object, $tokens[$this->lastToken+2]);
+                    }
+                }
+            }
+            var_dump($classesToCheck);
+//            $this->backTrackMethodsCheck($classToCheck, $totalToken, $tokens);
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 
