@@ -84,9 +84,10 @@ class DeadCodeAnalyzer
             $this->parentClassNamespace = $parent->name;
             $parentClass = new \ReflectionClass($this->parentClassNamespace);
             $this->parentClassName = $parentClass->getShortName();
+
             $this->parents [] = [
-                'parentClassNamespace' => $this->parentClassNamespace,
-                'parentClassName' => $this->parentClassName
+                "parentClassNamespace" => $this->parentClassNamespace,
+                "parentClassName" => $this->parentClassName
             ];
         }
     }
@@ -174,12 +175,12 @@ class DeadCodeAnalyzer
     public function storeFileInfo($files)
     {
         /********************** TEST CODE *********************************************/
-        $all = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
-//        $all = app_path() . "\User.php";
+//        $all = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
+        $all = app_path() . "\User.php";
         $filess = [];
         $filess [] = $all;
         /********************** TEST CODE *********************************************/
-        foreach ($filess as $filePath) {
+        foreach ($files as $filePath) {
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
             $namespace = $this->getNameSpace($filePath);
             if ($namespace)
@@ -188,15 +189,22 @@ class DeadCodeAnalyzer
         }
         /********************** TEST CODE *********************************************/
         $allClasses = $this->checkFiles['classes'];
-        echo "dump".EOL;
-        var_dump($allClasses);
-//        foreach ($this->checkFiles['classes'] as $class) {
+        echo "dump" . EOL;
+//        var_dump($allClasses);
+      /*  foreach ($this->checkFiles['classes'] as $class) {
+            echo "This namespace: " . $class["namespace"] . EOL;
+            if (isset($class["parentClasses"])) {
+//                $result = json_decode($class["parentClasses"]);
+//                $context = $result['context'];
+                foreach ($class["parentClasses"] as $parent)
+                    echo "This parentClassName namespace: " . $parent["parentClassNamespace"]. EOL;
+            }
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
 //            $namespace = $this->getNameSpace($filePath);
 //            if ($namespace)
 //                $this->classStore($namespace, $filePath);
 //
-//        }
+        }*/
         /********************** TEST CODE *********************************************/
         /*  $tokens = token_get_all($filee);
           $commentTokens = FileHelpers::commentTokens();
@@ -228,14 +236,14 @@ class DeadCodeAnalyzer
 
     public function getDeadCodes()
     {
-        // MAIN PART
+        /***********************************    MAIN PART   *********************************************************/
         /* $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
          $this->inspectFiles($allFiles);
  //        $this->staticAndInternalCheck($allFiles);
  //        $this->interfacePropertyCheck($allFiles);
  //        $this->externalCallCheck($allFiles);
          return $allFiles;*/
-
+        /********************************************************************************************/
         // TESTING PART
 //        $files = app_path() . "\Models\Holiday\FixedHoliday.php";
         $files = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
@@ -243,6 +251,15 @@ class DeadCodeAnalyzer
         $all [] = $files;
 //        dd($all);
         $this->inspectFiles($all);
+        foreach ($this->checkFiles["classes"] as $class){
+            foreach ($class["methods"] as $mm) {
+                if ($mm["flag"]) {
+                    echo "Namespace: " . $class["namespace"] . EOL;
+                    echo "Class name: " . $class["className"] . EOL;
+                    echo "Method name: " . $mm["name"] . EOL;
+                }
+            }
+        }
     }
 
     public function interfacePropertyCheck($files)
@@ -261,6 +278,13 @@ class DeadCodeAnalyzer
         echo "<br>";
     }
 
+    /**
+     * @param $tokens
+     * @param $totalToken
+     * @throws \ReflectionException
+     * Get Namespace Lists of a class under observation
+     * If any class namespace is replaces with as keyword, we can get the real class name and namespace from here
+     */
     public function getNamespaceLists($tokens, $totalToken)
     {
         $this->namespaceLists = [];
@@ -366,18 +390,19 @@ class DeadCodeAnalyzer
 //        }
     }
 
-    function updateMethodFlag($namespace, $methodName){
+    function updateMethodFlag($namespace, $methodName)
+    {
         // here is a problem, interface and parent class is not checked yet.
+        // if class / namespace is in App directory: it is already chec because this->checkfiles only store none other than app directory files
         $class = new \ReflectionClass($namespace);
         $className = $class->getShortName();
-        $flag = 0;
-        $thisClass = 0;
+        $flag = $thisClass = $parentClassCheck = 0;
+        $parentNamespace = "";
         foreach ($this->checkFiles['classes'] as &$class) {
             if ($flag) break;
-            if ($namespace == $class["namespace"] &&
-                $className == $class["className"]) {
+            if ($namespace == $class["namespace"] && $className == $class["className"]) {
                 foreach ($class["methods"] as &$method) {
-                    if ($method["name"] == $methodName) {
+                    if ($method["name"] == $methodName && $method["flag"] == 0) {
                         $flag = 1;
                         $thisClass = 1;
                         $method["flag"] = 1;
@@ -388,10 +413,20 @@ class DeadCodeAnalyzer
             }
 
         }
-        if(!$thisClass){
+        if (!$thisClass) {
             // if this class is still = 0; that means method is not in this class, its in its parent classes,
             // either in parent, or in interfaces
             // go there, gooooooooooooooooooo
+            foreach ($this->checkFiles['classes'] as &$class) {
+                if ($namespace == $class["namespace"] && $className == $class["className"]) {
+                    foreach ($class["parentClasses"] as $parent )
+                        $parentNamespace .= $parent["parentClassNamespace"];
+                    $this->updateMethodFlag($parentNamespace, $methodName);
+                    $thisClass = 1;
+                    break;
+                }
+
+            }
         }
 //        var_dump($this->checkFiles);
     }
@@ -403,15 +438,31 @@ class DeadCodeAnalyzer
     }
 
 //    function backTrackMethodsCheck($classToCheck, $totalToken, $tokens){
-    function backTrackMethodsCheck($classArrayToCheck, $object, $methodName){
+// object or namespace = $object
+    function backTrackMethodsCheck($classArrayToCheck, $objectOrNamespace, $methodName, $checker)
+    {
+        // $checker = [
+        // Di method = DI,
+        // only $this = this,
+        // other = other
 //        $classToCheck [] = [
 //            "namespace" => $className["namespace"],
 //            "className" => $className["className"],
 //            "object" => $tokens[$index]
 //        ];
-        foreach ($classArrayToCheck as &$class){
-            if($class['object'] == $object){
-                $result = $this->updateMethodFlag($class['namespace'], $methodName);
+        if ($checker == 'this') {
+            $this->updateMethodFlag($objectOrNamespace, $methodName);
+        } else {
+            foreach ($classArrayToCheck as &$class) {
+//                $classToCheck [] = [
+//                    "namespace" => $c["namespace"],
+//                    "className" => $c["className"],
+//                    "object" => $tokens[$variable]
+//                ];
+//                echo "HERERERERE: " . $class["namespace"];
+                if ($class['object'] == $objectOrNamespace) {
+                    $this->updateMethodFlag($class['namespace'], $methodName);
+                }
             }
         }
 
@@ -437,6 +488,7 @@ class DeadCodeAnalyzer
 //        $classesToCheck = [];
         foreach ($files as $filePath) {
 //            echo $filePath . " ASH HSSH <br>";
+            /** GET ALL TOKENS **/
             $namespace = $this->getNameSpace($filePath);
             echo "<br><br>NAMESPACE:: " . $namespace . "<br><br>";
             $code = file_get_contents($filePath);
@@ -459,16 +511,29 @@ class DeadCodeAnalyzer
              * 2. From self:: [done]
              * 3. For static method or direct method call ==> ClassName::method()
              * 4. using new keyword (creating new object / instance of that class)
+             * 5. for $this->>method()::: NOT DONE
              */
             for ($t = 0; $t < $totalToken; $t++) {
 //                                echo "TokenI:: " . $tokens[$t] . EOL;
                 // storing class and object from constructor i.e. Dependency injection
                 if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
-                    $classesToCheck [] = $this->getFromDI($tokens, $t);
-                    foreach ($classesToCheck as $classes) {
+                    $classesCheck [] = $this->getFromDI($tokens, $t);
+                    echo "Constr:: " . EOL;
+
+                    foreach ($classesCheck as $classes) {
+                        foreach ($classes as $class) {
+                            $classesToCheck [] = [
+                                "namespace" => $class["namespace"],
+                                "className" => $class['className'],
+                                "object" => $class['object']
+                            ];
+                            echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
+                        }
+                    }
+                    /*foreach ($classesToCheck as $classes) {
                         foreach ($classes as $class)
                             echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
-                    }
+                    }*/
                     $t = $this->constructorEndTokenPosition; // so that amar abar eshe consructor e dhukte na hoy,
                     // r egula variable o read korte na hoy
                 }
@@ -481,18 +546,18 @@ class DeadCodeAnalyzer
                 }
 
                 // static method call
-                if($tokens[$t] == "::" && $tokens[$t-1] != "self"){
-                    $this->staticMethodsCheck($tokens[$t-1], $tokens[$t+1]);
+                if ($tokens[$t] == "::" && $tokens[$t - 1] != "self") {
+                    $this->staticMethodsCheck($tokens[$t - 1], $tokens[$t + 1]);
                 }
 
                 // new object create check
-                if($tokens[$t] == "new" && $tokens[$t+1] instanceof \PHP_Token_STRING && $tokens[$t+2] == "("){
+                if ($tokens[$t] == "new" && $tokens[$t + 1] instanceof \PHP_Token_STRING && $tokens[$t + 2] == "(") {
                     $variable = $t;
-                    while(!($tokens[$variable] instanceof \PHP_Token_VARIABLE) ){
+                    while (!($tokens[$variable] instanceof \PHP_Token_VARIABLE)) {
                         $variable--;
                     }
-                    $c = $this->getRealClassName($tokens[$t+1]);
-                    $classToCheck [] = [
+                    $c = $this->getRealClassName($tokens[$t + 1]); //  If any class namespace is replaces with as keyword, we can get the real class name and namespace from here
+                    $classesToCheck [] = [
                         "namespace" => $c["namespace"],
                         "className" => $c["className"],
                         "object" => $tokens[$variable]
@@ -500,28 +565,51 @@ class DeadCodeAnalyzer
                 }
 
                 // now for backtrack method to method flag check the $classesToCheck array
-                if($tokens[$t] instanceof \PHP_Token_VARIABLE){
-                    $object = "";
+                if ($tokens[$t] instanceof \PHP_Token_VARIABLE) {
+//                    echo "Token Variable:: ".$tokens[$t].$tokens[$t+1].$tokens[$t+2].EOL;
+                    $object = $method = $checker = "";
 
-                    // for $this, from DI
-                    if($tokens[$t] == '$this' && $tokens[$t+1] == '->' &&
-                        $tokens[$t+2] instanceof \PHP_Token_STRING){
-                        $object.= $tokens[$t].$tokens[$t+1].$tokens[$t+2];
-                        $this->lastToken = $t+3;
-                    }
-                    // another local variable for new keyword
-                    else{
-                        $object.=$tokens[$t];
-                        $this->lastToken = $t+1;
+                    // for $this, from DI:: like, $this->book->method(
+                    if ($tokens[$t] == '$this' && $tokens[$t + 1] == '->' &&
+                        $tokens[$t + 2] instanceof \PHP_Token_STRING && $tokens[$t + 3] == '->' &&
+                        $tokens[$t + 4] instanceof \PHP_Token_STRING && $tokens[$t + 5] == '('
+                    ) {
+                        $object .= $tokens[$t] . $tokens[$t + 1] . $tokens[$t + 2];
+                        $method .= $tokens[$t + 4];
+                        $t = $t + 5;
+                        $checker .= "DI";
+                    } // for calling same class method using $this->method(
+                    elseif ($tokens[$t] == '$this' && $tokens[$t + 1] == '->' &&
+                        $tokens[$t + 2] instanceof \PHP_Token_STRING && $tokens[$t + 3] == '('
+                    ) {
+                        $object .= $namespace;
+                        $method .= $tokens[$t + 2];
+                        $t = $t + 3;
+                        $checker .= "this";
+
+                    } // another local variable for new keyword, like $variable->method(
+                    elseif ($tokens[$t] != '$this' && $tokens[$t + 1] == '->' &&
+                        $tokens[$t + 2] instanceof \PHP_Token_STRING && $tokens[$t + 3] == '('
+                    ) {
+                        $object .= $tokens[$t];
+                        $method .= $tokens[$t + 2];
+                        $t = $t + 3;
+                        $checker .= "other";
                     }
 
-                    if($tokens[$this->lastToken+1] == '->' &&
-                        $tokens[$this->lastToken+2] instanceof \PHP_Token_STRING && $tokens[$this->lastToken+3] == '('){
-                        $this->backTrackMethodsCheck($classToCheck, $object, $tokens[$this->lastToken+2]);
-                    }
+//                    if($tokens[$this->lastToken+1] == '->' && $tokens[$this->lastToken+2] instanceof \PHP_Token_STRING && $tokens[$this->lastToken+3] == '('){
+                    // $object = $this->book(DI); $this ; $variable
+                    // method = methodName
+//                    echo "jjjjj" . EOL;
+//                    foreach ($classesToCheck as $class) {
+////                        foreach ($classes as $class)
+//                        if (isset($class["namespace"]))
+//                            echo "Name space:: " . $class["namespace"] . EOL;
+//                    }
+                    $this->backTrackMethodsCheck($classesToCheck, $object, $method, $checker);
+//                    }
                 }
             }
-            var_dump($classesToCheck);
 //            $this->backTrackMethodsCheck($classToCheck, $totalToken, $tokens);
 
 //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
