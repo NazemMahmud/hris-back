@@ -4,7 +4,7 @@ namespace App\Helpers;
 
 use function foo\func;
 
-define('EOL', "<br><br>");
+define('EOL', "<br>");
 
 class DeadCodeAnalyzer
 {
@@ -52,10 +52,12 @@ class DeadCodeAnalyzer
      */
     public function getAllAppDirectoryFiles($path, $flag = '')
     {
-//        echo "sadsadsa: ".$flag."\n\n";
+//        echo "path: ".$path.EOL;
         $out = [];
         $results = scandir($path);
-        $blackLists = (isset($flag)) ? $this->dirBlackListsToAnalyze : $this->dirBlackLists;
+        $blackLists = ($flag != "") ? $this->dirBlackListsToAnalyze : $this->dirBlackLists;
+//        echo "Blacklists".EOL;
+//        var_dump($blackLists);
         foreach ($results as $result) {
             if ($result === '.' or $result === '..') continue;
             $filename = $path . DIRECTORY_SEPARATOR . $result;
@@ -74,6 +76,7 @@ class DeadCodeAnalyzer
             }
         }
 //        dd($out);
+//        var_dump($out);
         return $out;
     }
 
@@ -140,7 +143,6 @@ class DeadCodeAnalyzer
             'traits' => []
         ];
 //        var_dump($this->checkFiles['classes']);
-//        echo "<br><br>";
     }
 
     public function getNameSpace($file)
@@ -189,7 +191,7 @@ class DeadCodeAnalyzer
         }
         /********************** TEST CODE *********************************************/
         $allClasses = $this->checkFiles['classes'];
-        echo "dump" . EOL;
+//        echo "dump" . EOL; // IMPORTANT PRINT LINE
 //        var_dump($allClasses);
       /*  foreach ($this->checkFiles['classes'] as $class) {
             echo "This namespace: " . $class["namespace"] . EOL;
@@ -237,25 +239,25 @@ class DeadCodeAnalyzer
     public function getDeadCodes()
     {
         /***********************************    MAIN PART   *********************************************************/
-        /* $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
+         $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
          $this->inspectFiles($allFiles);
  //        $this->staticAndInternalCheck($allFiles);
  //        $this->interfacePropertyCheck($allFiles);
  //        $this->externalCallCheck($allFiles);
-         return $allFiles;*/
+//         return $allFiles;
         /********************************************************************************************/
-        // TESTING PART
+        /***********************************    TEST PART   *********************************************************/
 //        $files = app_path() . "\Models\Holiday\FixedHoliday.php";
-        $files = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
+        /*$files = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
         $all = [];
         $all [] = $files;
-//        dd($all);
-        $this->inspectFiles($all);
+        $this->inspectFiles($all); */
+        /***********************************    TEST PART END   *********************************************************/
         foreach ($this->checkFiles["classes"] as $class){
             foreach ($class["methods"] as $mm) {
-                if ($mm["flag"]) {
-                    echo "Namespace: " . $class["namespace"] . EOL;
-                    echo "Class name: " . $class["className"] . EOL;
+                if (!$mm["flag"]) {
+                    echo "Namespace: " . $class["namespace"] . ":: ";
+                    echo "Class name: " . $class["className"] .":: ";
                     echo "Method name: " . $mm["name"] . EOL;
                 }
             }
@@ -390,8 +392,12 @@ class DeadCodeAnalyzer
 //        }
     }
 
-    function updateMethodFlag($namespace, $methodName)
+    function updateMethodFlag($namespace, $methodName, $fromWhere)
     {
+//        if($namespace == "")
+//            echo "From: ".$fromWhere.EOL;
+//        else
+//            echo "Name: ".$namespace.EOL;
         // here is a problem, interface and parent class is not checked yet.
         // if class / namespace is in App directory: it is already chec because this->checkfiles only store none other than app directory files
         $class = new \ReflectionClass($namespace);
@@ -417,11 +423,14 @@ class DeadCodeAnalyzer
             // if this class is still = 0; that means method is not in this class, its in its parent classes,
             // either in parent, or in interfaces
             // go there, gooooooooooooooooooo
-            foreach ($this->checkFiles['classes'] as &$class) {
-                if ($namespace == $class["namespace"] && $className == $class["className"]) {
-                    foreach ($class["parentClasses"] as $parent )
+            foreach ($this->checkFiles['classes'] as &$file) {
+                if ($namespace == $file["namespace"] && $file["parentClasses"] ) { // && $className == $file["className"]
+                    foreach ($file["parentClasses"] as $parent ) {
+//                        echo "In loop parent".$parent["parentClassNamespace"].EOL;
                         $parentNamespace .= $parent["parentClassNamespace"];
-                    $this->updateMethodFlag($parentNamespace, $methodName);
+                    }
+//                    echo "parent namespace: ".$parentNamespace.EOL;
+                    $this->updateMethodFlag($parentNamespace, $methodName, "recursive call");
                     $thisClass = 1;
                     break;
                 }
@@ -431,11 +440,13 @@ class DeadCodeAnalyzer
 //        var_dump($this->checkFiles);
     }
 
-    public function staticMethodsCheck($className, $methodName)
+    /*public function staticMethodsCheck($className, $methodName)
     {
+        echo "Static Methods Check: ".$className.EOL;
         $class = $this->getRealClassName($className);
+        echo "Before call from staticMethodsCheck: ".$class["namespace"].EOL;
         $this->updateMethodFlag($class["namespace"], $methodName);
-    }
+    }*/
 
 //    function backTrackMethodsCheck($classToCheck, $totalToken, $tokens){
 // object or namespace = $object
@@ -451,17 +462,14 @@ class DeadCodeAnalyzer
 //            "object" => $tokens[$index]
 //        ];
         if ($checker == 'this') {
-            $this->updateMethodFlag($objectOrNamespace, $methodName);
+//            echo "Before call from backTrackMethodsCheck this: ".$objectOrNamespace.EOL;
+            $this->updateMethodFlag($objectOrNamespace, $methodName, "backtrack-this");
         } else {
             foreach ($classArrayToCheck as &$class) {
-//                $classToCheck [] = [
-//                    "namespace" => $c["namespace"],
-//                    "className" => $c["className"],
-//                    "object" => $tokens[$variable]
-//                ];
 //                echo "HERERERERE: " . $class["namespace"];
                 if ($class['object'] == $objectOrNamespace) {
-                    $this->updateMethodFlag($class['namespace'], $methodName);
+//                    echo "Before call from backTrackMethodsCheck class object: ".$class['namespace'].EOL;
+                    $this->updateMethodFlag($class['namespace'], $methodName, "backtrack-class-object");
                 }
             }
         }
@@ -490,7 +498,7 @@ class DeadCodeAnalyzer
 //            echo $filePath . " ASH HSSH <br>";
             /** GET ALL TOKENS **/
             $namespace = $this->getNameSpace($filePath);
-            echo "<br><br>NAMESPACE:: " . $namespace . "<br><br>";
+//            echo "<br><br>NAMESPACE:: " . $namespace . "<br><br>"; // IMPORTANT PRINT LINE
             $code = file_get_contents($filePath);
             $tokens = new \PHP_Token_Stream($code);
             /****************************  FOR TEST PURPOSE ***********************/
@@ -518,8 +526,6 @@ class DeadCodeAnalyzer
                 // storing class and object from constructor i.e. Dependency injection
                 if ($tokens[$t] == "__construct") { // from constructor using DI get class name/s and object name/s
                     $classesCheck [] = $this->getFromDI($tokens, $t);
-                    echo "Constr:: " . EOL;
-
                     foreach ($classesCheck as $classes) {
                         foreach ($classes as $class) {
                             $classesToCheck [] = [
@@ -527,7 +533,7 @@ class DeadCodeAnalyzer
                                 "className" => $class['className'],
                                 "object" => $class['object']
                             ];
-                            echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>";
+//                            echo "AAClass: " . $class['className'] . " Object: " . $class['object'] . "<br>"; // IMPORTANT PRINT LINE
                         }
                     }
                     /*foreach ($classesToCheck as $classes) {
@@ -539,16 +545,17 @@ class DeadCodeAnalyzer
                 }
                 // self method call
                 if ($tokens[$t] == "self" && $tokens[$t + 1] == "::") {
-                    echo "TRUE<br>" . $tokens[$t + 2] . "<br><br>";
-                    $this->updateMethodFlag($namespace, $tokens[$t + 2]);
+//                    echo "TRUE<br>" . $tokens[$t + 2] . "<br><br>"; // IMPORTANT PRINT LINE
+//                    echo "Before call from for self: ".$namespace.EOL;
+                    $this->updateMethodFlag($namespace, $tokens[$t + 2], "self method");
                     $t += 2;
                     continue;
                 }
 
                 // static method call
-                if ($tokens[$t] == "::" && $tokens[$t - 1] != "self") {
+                /*if ($tokens[$t] == "::" && $tokens[$t - 1] != "self") {
                     $this->staticMethodsCheck($tokens[$t - 1], $tokens[$t + 1]);
-                }
+                }*/
 
                 // new object create check
                 if ($tokens[$t] == "new" && $tokens[$t + 1] instanceof \PHP_Token_STRING && $tokens[$t + 2] == "(") {

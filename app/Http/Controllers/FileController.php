@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\FileHelpers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use App\Helpers\DeadCodeAnalyzer;
 
@@ -67,6 +68,11 @@ class FileController extends Controller
     {
         $this->helper = new DeadCodeAnalyzer();
         $allFiles = $this->helper->getAllAppDirectoryFiles(app_path());
+        $contents = "";
+        foreach ($allFiles as $file){
+            $contents.=$file."\n";
+        }
+        Storage::disk('local')->put('fileToCheck.txt', $contents);
         $this->helper->initiate();
         $this->helper->storeFileInfo($allFiles);
         $result = $this->helper->getDeadCodes();
