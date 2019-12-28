@@ -248,20 +248,27 @@ class DeadCodeAnalyzer
         /********************************************************************************************/
         /***********************************    TEST PART   *********************************************************/
 //        $files = app_path() . "\Models\Holiday\FixedHoliday.php";
-        /*$files = app_path() . "\Http\Controllers\Setup\OrganizationBandController.php";
+        /*$files = app_path() . "\Http\Controllers\Setup\BankController.php";
         $all = [];
         $all [] = $files;
-        $this->inspectFiles($all); */
-        /***********************************    TEST PART END   *********************************************************/
+        $this->inspectFiles($all);*/
+
+        $methodFlagCounter = 0;
+//        foreach ($this->checkFiles["classes"] as $class){
         foreach ($this->checkFiles["classes"] as $class){
             foreach ($class["methods"] as $mm) {
+                $methodFlagCounter++;
                 if (!$mm["flag"]) {
                     echo "Namespace: " . $class["namespace"] . ":: ";
                     echo "Class name: " . $class["className"] .":: ";
                     echo "Method name: " . $mm["name"] . EOL;
+//                    $methodFlagCounter++;
                 }
             }
         }
+
+        echo "Checked:::: ".$methodFlagCounter.EOL;
+        /***********************************    TEST PART END   *********************************************************/
     }
 
     public function interfacePropertyCheck($files)
@@ -308,8 +315,8 @@ class DeadCodeAnalyzer
                 $class = new \ReflectionClass($namespaceString);
                 $this->namespaceLists [] = [
                     'namespace' => $namespaceString,
-                    'className' => $class->getShortName(),
-                    'replaced_namespace' => $replacedNamespaceString,
+                    'className' => (strlen($replacedNamespaceString) > 0) ? $replacedNamespaceString : $class->getShortName(),
+//                    'replaced_namespace' => $replacedNamespaceString,
                 ];
             }
             // if class starts then there will be no new namespace to add
@@ -319,16 +326,46 @@ class DeadCodeAnalyzer
 
     function getRealClassName($className)
     {
+        $replacedFlag = 0;
         foreach ($this->namespaceLists as $namespace) {
-            if ($namespace["className"] == $className || $namespace["replaced_namespace"] == $className) {
+            // 1. count same class name koybar ase
+            // 2.1. if > 2 then jetar replaced namespac nai oita return
+            // 2.2.1. jodi 1tai hoy and replace thake tahole oita
+            // 2.2.2. jodi 1tai hoy and replace na thake tahole oita
+            if ($namespace["className"] == $className) {
+                return [
+                    "namespace" => $namespace["namespace"],
+                    "className" => $namespace["className"]
+                ];
+            }
+            /*if ($namespace["replaced_namespace"] == $className &&
+                $namespace["className"] == $className) {
+                echo "Replaced namespace: ".$namespace["namespace"]." ClassName: ".$namespace["className"].EOL;
                 // namespace shoho return kortesi coz static method check er shomoy namespace diye oi file e jeno check korte pari
                 return [
                     "namespace" => $namespace["namespace"],
                     "className" => $namespace["className"]
                 ];
             }
+            elseif($namespace["className"] == $className &&
+                $namespace["replaced_namespace"] != $className){
+//                if($namespace["replaced_namespace"] == "") {
+                    echo "Original namespace: ".$namespace["namespace"]." ClassName: ".$namespace["className"].EOL;
+                    return [
+                        "namespace" => $namespace["namespace"],
+                        "className" => $namespace["className"]
+                    ];
+//                }
+//                else{
+//                    echo "Replaced namespace: ".$namespace["namespace"]." ClassName: ".$namespace["className"].EOL;
+//                    return [
+//                        "namespace" => $namespace["namespace"],
+//                        "className" => $namespace["className"]
+//                    ];
+//                }
+            }*/
         }
-        return;
+
     }
 
     function getFromDI($tokens, $startPosition)
@@ -407,12 +444,20 @@ class DeadCodeAnalyzer
         foreach ($this->checkFiles['classes'] as &$class) {
             if ($flag) break;
             if ($namespace == $class["namespace"] && $className == $class["className"]) {
+//                echo "Inside namespace: ".$namespace.EOL;
                 foreach ($class["methods"] as &$method) {
                     if ($method["name"] == $methodName && $method["flag"] == 0) {
                         $flag = 1;
                         $thisClass = 1;
                         $method["flag"] = 1;
                         // return namespace and method name which flag is set to 1; so that from classesTocheck make empty
+
+//                        echo "Namespace: " . $class["namespace"] . ":: ";
+//                        echo "Class name: " . $class["className"] .":: ";
+//                        echo "Method name: " . $method["name"] . EOL;
+//                        $methodFlagCounter++;
+
+
                         break;
                     }
                 }
@@ -452,10 +497,11 @@ class DeadCodeAnalyzer
 // object or namespace = $object
     function backTrackMethodsCheck($classArrayToCheck, $objectOrNamespace, $methodName, $checker)
     {
+//        echo "Backtrack call !".$objectOrNamespace." ".$checker.EOL;
         // $checker = [
         // Di method = DI,
         // only $this = this,
-        // other = other
+        // other = other ] ;
 //        $classToCheck [] = [
 //            "namespace" => $className["namespace"],
 //            "className" => $className["className"],
@@ -483,6 +529,22 @@ class DeadCodeAnalyzer
         }*/
     }
 
+    public function checkNamespace($model){
+        foreach ($this->namespaceLists as $namespace){
+//            if($namespace["className"] == $model || $namespace["replaced_namespace"] == $model){
+            if($namespace["className"] == $model){
+                return [
+                    "namespace" => $namespace["namespace"],
+                    "check" => 1
+                ];
+            }
+        }
+        return [
+            "namespace" => "",
+            "check" => 0
+        ];
+    }
+
     /**
      * @param $files
      * @throws \ReflectionException
@@ -495,10 +557,11 @@ class DeadCodeAnalyzer
          */
 //        $classesToCheck = [];
         foreach ($files as $filePath) {
-//            echo $filePath . " ASH HSSH <br>";
+//            echo $filePath . " ASH HSSH".EOL;
             /** GET ALL TOKENS **/
             $namespace = $this->getNameSpace($filePath);
-//            echo "<br><br>NAMESPACE:: " . $namespace . "<br><br>"; // IMPORTANT PRINT LINE
+//            echo "<br><br>NAMESPACE:: " . $namespace . "<br><br>";
+// // IMPORTANT PRINT LINE
             $code = file_get_contents($filePath);
             $tokens = new \PHP_Token_Stream($code);
             /****************************  FOR TEST PURPOSE ***********************/
@@ -514,6 +577,9 @@ class DeadCodeAnalyzer
             $totalToken = count($tokens);
             $classesToCheck = [];
             $this->getNamespaceLists($tokens, $totalToken); // get used Classes from the file use namespaces
+//            foreach ($this->namespaceLists as $list){
+//                echo "List: namespace: ".$list["namespace"]. " listClass: ". $list["className"]. " replaced: ".$list["replaced_namespace"].EOL;
+//            }
             /**
              * 1. From DI get Class and Object name/s to check
              * 2. From self:: [done]
@@ -553,9 +619,18 @@ class DeadCodeAnalyzer
                 }
 
                 // static method call
-                /*if ($tokens[$t] == "::" && $tokens[$t - 1] != "self") {
-                    $this->staticMethodsCheck($tokens[$t - 1], $tokens[$t + 1]);
-                }*/
+                if ($tokens[$t] == "::" && $tokens[$t - 1] != "self" &&
+                    $tokens[$t + 1] instanceof \PHP_Token_VARIABLE && $tokens[$t + 2] == "(") {
+                    // here classname needs
+                    $nameSpace = ($tokens[$t - 1] == 'static') ? $namespace: "";
+                    if($nameSpace == ""){
+                        $nameSpaceResult = $this->checkNamespace($tokens[$t - 1]);
+                        if($nameSpaceResult["check"])
+                            $nameSpace = $nameSpaceResult->namespace;
+                    }
+                    if($nameSpace != "")
+                        $this->updateMethodFlag($nameSpace, $tokens[$t + 1], "from-static");
+                }
 
                 // new object create check
                 if ($tokens[$t] == "new" && $tokens[$t + 1] instanceof \PHP_Token_STRING && $tokens[$t + 2] == "(") {
@@ -576,7 +651,7 @@ class DeadCodeAnalyzer
 //                    echo "Token Variable:: ".$tokens[$t].$tokens[$t+1].$tokens[$t+2].EOL;
                     $object = $method = $checker = "";
 
-                    // for $this, from DI:: like, $this->book->method(
+                    // for $this, from DI:: like, $this->bank->getResourceById(
                     if ($tokens[$t] == '$this' && $tokens[$t + 1] == '->' &&
                         $tokens[$t + 2] instanceof \PHP_Token_STRING && $tokens[$t + 3] == '->' &&
                         $tokens[$t + 4] instanceof \PHP_Token_STRING && $tokens[$t + 5] == '('
@@ -585,14 +660,18 @@ class DeadCodeAnalyzer
                         $method .= $tokens[$t + 4];
                         $t = $t + 5;
                         $checker .= "DI";
-                    } // for calling same class method using $this->method(
+//                        echo "DI ObjectWithMethod: ".$object."->".$method.EOL;
+                    }
+                    // for calling same class method using $this->totalFromPercentage(
                     elseif ($tokens[$t] == '$this' && $tokens[$t + 1] == '->' &&
                         $tokens[$t + 2] instanceof \PHP_Token_STRING && $tokens[$t + 3] == '('
                     ) {
+                        echo "This: ".$namespace." ++ObjectWithMethod: ".$tokens[$t].$tokens[$t + 1].$tokens[$t + 2].$tokens[$t + 3].EOL;
                         $object .= $namespace;
                         $method .= $tokens[$t + 2];
                         $t = $t + 3;
                         $checker .= "this";
+//                        if($tokens[$t].$tokens[$t + 1].$tokens[$t + 2].$tokens[$t + 3] == '$this->totalFromPercentage(')
 
                     } // another local variable for new keyword, like $variable->method(
                     elseif ($tokens[$t] != '$this' && $tokens[$t + 1] == '->' &&
@@ -600,8 +679,9 @@ class DeadCodeAnalyzer
                     ) {
                         $object .= $tokens[$t];
                         $method .= $tokens[$t + 2];
-                        $t = $t + 3;
+//                        $t = $t + 3;
                         $checker .= "other";
+//                        echo "New ObjectWithMethod: ".$object."->".$method.EOL;
                     }
 
 //                    if($tokens[$this->lastToken+1] == '->' && $tokens[$this->lastToken+2] instanceof \PHP_Token_STRING && $tokens[$this->lastToken+3] == '('){
@@ -613,7 +693,8 @@ class DeadCodeAnalyzer
 //                        if (isset($class["namespace"]))
 //                            echo "Name space:: " . $class["namespace"] . EOL;
 //                    }
-                    $this->backTrackMethodsCheck($classesToCheck, $object, $method, $checker);
+                    if($checker != "")
+                         $this->backTrackMethodsCheck($classesToCheck, $object, $method, $checker);
 //                    }
                 }
             }

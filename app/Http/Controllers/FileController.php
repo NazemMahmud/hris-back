@@ -76,7 +76,7 @@ class FileController extends Controller
         $this->helper->initiate();
         $this->helper->storeFileInfo($allFiles);
         $result = $this->helper->getDeadCodes();
-//        return $allFiles;
+//        return $result;
     }
 
     public Function index()
