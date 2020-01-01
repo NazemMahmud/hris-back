@@ -257,12 +257,12 @@ class DeadCodeAnalyzer
 //        foreach ($this->checkFiles["classes"] as $class){
         foreach ($this->checkFiles["classes"] as $class){
             foreach ($class["methods"] as $mm) {
-                $methodFlagCounter++;
+//                $methodFlagCounter++;
                 if (!$mm["flag"]) {
                     echo "Namespace: " . $class["namespace"] . ":: ";
                     echo "Class name: " . $class["className"] .":: ";
                     echo "Method name: " . $mm["name"] . EOL;
-//                    $methodFlagCounter++;
+                    $methodFlagCounter++;
                 }
             }
         }
