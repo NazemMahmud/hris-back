@@ -4,7 +4,9 @@ namespace App\Helpers;
 
 use function foo\func;
 
-define('EOL', "<br>");
+define('EOL', "<br><br>");
+define('LB', "\n");
+define('NL', "\n\n");
 
 class DeadCodeAnalyzer
 {
@@ -26,8 +28,8 @@ class DeadCodeAnalyzer
      * @var array
      * the folder and files which will be ignored for dead code checking
      */
-    protected $dirBlackLists = array('Console', 'Exceptions', 'Controllers', 'Middleware', 'Providers');
-    protected $dirBlackListsToAnalyze = array('Console', 'Exceptions', 'Middleware', 'Providers');
+    protected $dirBlackLists = array('Console', 'Exceptions', 'Controllers', 'Middleware', 'Providers', 'Resources');
+    protected $dirBlackListsToAnalyze = array('Console', 'Exceptions', 'Middleware', 'Providers', 'Resources');
     protected $fileBlackLists = array('Helper', 'Kernel');
 
     /**
@@ -193,20 +195,20 @@ class DeadCodeAnalyzer
         $allClasses = $this->checkFiles['classes'];
 //        echo "dump" . EOL; // IMPORTANT PRINT LINE
 //        var_dump($allClasses);
-      /*  foreach ($this->checkFiles['classes'] as $class) {
-            echo "This namespace: " . $class["namespace"] . EOL;
-            if (isset($class["parentClasses"])) {
-//                $result = json_decode($class["parentClasses"]);
-//                $context = $result['context'];
-                foreach ($class["parentClasses"] as $parent)
-                    echo "This parentClassName namespace: " . $parent["parentClassNamespace"]. EOL;
-            }
-//            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
-//            $namespace = $this->getNameSpace($filePath);
-//            if ($namespace)
-//                $this->classStore($namespace, $filePath);
-//
-        }*/
+        /*  foreach ($this->checkFiles['classes'] as $class) {
+              echo "This namespace: " . $class["namespace"] . EOL;
+              if (isset($class["parentClasses"])) {
+  //                $result = json_decode($class["parentClasses"]);
+  //                $context = $result['context'];
+                  foreach ($class["parentClasses"] as $parent)
+                      echo "This parentClassName namespace: " . $parent["parentClassNamespace"]. EOL;
+              }
+  //            $filee = file_get_contents(app_path() . DIRECTORY_SEPARATOR. "Helpers\\test.php");
+  //            $namespace = $this->getNameSpace($filePath);
+  //            if ($namespace)
+  //                $this->classStore($namespace, $filePath);
+  //
+          }*/
         /********************** TEST CODE *********************************************/
         /*  $tokens = token_get_all($filee);
           $commentTokens = FileHelpers::commentTokens();
@@ -239,11 +241,11 @@ class DeadCodeAnalyzer
     public function getDeadCodes()
     {
         /***********************************    MAIN PART   *********************************************************/
-         $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
-         $this->inspectFiles($allFiles);
- //        $this->staticAndInternalCheck($allFiles);
- //        $this->interfacePropertyCheck($allFiles);
- //        $this->externalCallCheck($allFiles);
+        $allFiles = $this->getAllAppDirectoryFiles(app_path(), 'analyze');
+        $this->inspectFiles($allFiles);
+        //        $this->staticAndInternalCheck($allFiles);
+        //        $this->interfacePropertyCheck($allFiles);
+        //        $this->externalCallCheck($allFiles);
 //         return $allFiles;
         /********************************************************************************************/
         /***********************************    TEST PART   *********************************************************/
@@ -252,33 +254,7 @@ class DeadCodeAnalyzer
         $all = [];
         $all [] = $files;
         $this->inspectFiles($all);*/
-
-        $methodFlagCounter = 0;
-//        foreach ($this->checkFiles["classes"] as $class){
-        foreach ($this->checkFiles["classes"] as $class){
-            foreach ($class["methods"] as $mm) {
-//                $methodFlagCounter++;
-                if (!$mm["flag"]) {
-                    echo "Namespace: " . $class["namespace"] . ":: ";
-                    echo "Class name: " . $class["className"] .":: ";
-                    echo "Method name: " . $mm["name"] . EOL;
-                    $methodFlagCounter++;
-                }
-            }
-        }
-
-        echo "Checked:::: ".$methodFlagCounter.EOL;
         /***********************************    TEST PART END   *********************************************************/
-    }
-
-    public function interfacePropertyCheck($files)
-    {
-
-    }
-
-    public function externalCallCheck($files)
-    {
-
     }
 
     public function getMethodName($token)
@@ -469,8 +445,8 @@ class DeadCodeAnalyzer
             // either in parent, or in interfaces
             // go there, gooooooooooooooooooo
             foreach ($this->checkFiles['classes'] as &$file) {
-                if ($namespace == $file["namespace"] && $file["parentClasses"] ) { // && $className == $file["className"]
-                    foreach ($file["parentClasses"] as $parent ) {
+                if ($namespace == $file["namespace"] && $file["parentClasses"]) { // && $className == $file["className"]
+                    foreach ($file["parentClasses"] as $parent) {
 //                        echo "In loop parent".$parent["parentClassNamespace"].EOL;
                         $parentNamespace .= $parent["parentClassNamespace"];
                     }
@@ -529,10 +505,11 @@ class DeadCodeAnalyzer
         }*/
     }
 
-    public function checkNamespace($model){
-        foreach ($this->namespaceLists as $namespace){
+    public function checkNamespace($model)
+    {
+        foreach ($this->namespaceLists as $namespace) {
 //            if($namespace["className"] == $model || $namespace["replaced_namespace"] == $model){
-            if($namespace["className"] == $model){
+            if ($namespace["className"] == $model) {
                 return [
                     "namespace" => $namespace["namespace"],
                     "check" => 1
@@ -622,13 +599,13 @@ class DeadCodeAnalyzer
                 if ($tokens[$t] == "::" && $tokens[$t - 1] != "self" &&
                     $tokens[$t + 1] instanceof \PHP_Token_VARIABLE && $tokens[$t + 2] == "(") {
                     // here classname needs
-                    $nameSpace = ($tokens[$t - 1] == 'static') ? $namespace: "";
-                    if($nameSpace == ""){
+                    $nameSpace = ($tokens[$t - 1] == 'static') ? $namespace : "";
+                    if ($nameSpace == "") {
                         $nameSpaceResult = $this->checkNamespace($tokens[$t - 1]);
-                        if($nameSpaceResult["check"])
+                        if ($nameSpaceResult["check"])
                             $nameSpace = $nameSpaceResult->namespace;
                     }
-                    if($nameSpace != "")
+                    if ($nameSpace != "")
                         $this->updateMethodFlag($nameSpace, $tokens[$t + 1], "from-static");
                 }
 
@@ -661,12 +638,11 @@ class DeadCodeAnalyzer
                         $t = $t + 5;
                         $checker .= "DI";
 //                        echo "DI ObjectWithMethod: ".$object."->".$method.EOL;
-                    }
-                    // for calling same class method using $this->totalFromPercentage(
+                    } // for calling same class method using $this->totalFromPercentage(
                     elseif ($tokens[$t] == '$this' && $tokens[$t + 1] == '->' &&
                         $tokens[$t + 2] instanceof \PHP_Token_STRING && $tokens[$t + 3] == '('
                     ) {
-                        echo "This: ".$namespace." ++ObjectWithMethod: ".$tokens[$t].$tokens[$t + 1].$tokens[$t + 2].$tokens[$t + 3].EOL;
+//                        echo "644 This: ".$namespace." ++ObjectWithMethod: ".$tokens[$t].$tokens[$t + 1].$tokens[$t + 2].$tokens[$t + 3].EOL;
                         $object .= $namespace;
                         $method .= $tokens[$t + 2];
                         $t = $t + 3;
@@ -693,8 +669,8 @@ class DeadCodeAnalyzer
 //                        if (isset($class["namespace"]))
 //                            echo "Name space:: " . $class["namespace"] . EOL;
 //                    }
-                    if($checker != "")
-                         $this->backTrackMethodsCheck($classesToCheck, $object, $method, $checker);
+                    if ($checker != "")
+                        $this->backTrackMethodsCheck($classesToCheck, $object, $method, $checker);
 //                    }
                 }
             }
@@ -748,11 +724,6 @@ class DeadCodeAnalyzer
 
     }
 
-    function classNameCheckFromNameSpace($className)
-    {
-
-    }
-
     /**
      * TESTING PART
      */
@@ -779,5 +750,81 @@ class DeadCodeAnalyzer
         }
 
         return [];
+    }
+
+
+    function individualCounter()
+    {
+        $deadMethodWeightText = "Dead method weight: ";
+        $deadMethodText = "Dead methods : ";
+        $namespaceText = "Name space : ";
+        $classNameText = "Class Name : ";
+        $out = "";
+        $data = [];
+        foreach ($this->checkFiles["classes"] as $class) {
+            $totalMethodPerClass = $perClassDeadMethodCounter = $mflag = 0;
+            foreach ($class["methods"] as $mm) {
+                $totalMethodPerClass++;
+                if (!$mm["flag"]) {
+                    $perClassDeadMethodCounter++;
+                    $data [] = ['name' => $mm["name"] . "()"];
+                }
+            }
+            if (!empty($data)) {
+                $out .= $namespaceText . $class['namespace'] . LB;
+                $out .= $classNameText . $class['className'] . LB;
+                $out .= $deadMethodText;
+                $cc = 0;
+                foreach ($data as $name) {
+                    $cc++;
+                    $out .= $name['name'];
+                    if ($cc < count($data) - 1)
+                        $out .= ", ";
+                    else $out.=LB;
+                }
+                $out .= $deadMethodWeightText . number_format((($perClassDeadMethodCounter * 100) / $totalMethodPerClass), 2) . NL;
+                $data = [];
+            }
+        }
+        return $out;
+    }
+
+    function totalCounter()
+    {
+        $counter = $deadMethodCounter = 0;
+        foreach ($this->checkFiles["classes"] as $class) {
+            foreach ($class["methods"] as $mm) {
+                $counter++;
+                if (!$mm["flag"]) {
+                    $deadMethodCounter++;
+                }
+            }
+        }
+        return [
+            'total' => $counter,
+            'dead' => $deadMethodCounter,
+            'weight' => number_format((($deadMethodCounter * 100) / $counter), 2)."%",
+        ];
+    }
+
+    public function resultShow()
+    {
+        $output = "";
+        $resultText = "Result::" . NL;
+        $totalMethodText = "Total method:: ";
+        $totalDeadMethodText = "Total dead method : ";
+        $deadMethodWeightText = "Dead method weight: ";
+        $deadMethodInClassText = "Dead method per class::" . NL;
+
+        $totalCounter = $this->totalCounter();
+        $output .= $resultText;
+        $output .= $totalMethodText . $totalCounter["total"] . LB;
+        $output .= $totalDeadMethodText . $totalCounter["dead"] . LB;
+        $output .= $deadMethodWeightText . $totalCounter["weight"] . NL;
+
+        $output .= $deadMethodInClassText;
+        $output .= $this->individualCounter() . NL;
+        echo $output;
+        return $output;
     }
 }

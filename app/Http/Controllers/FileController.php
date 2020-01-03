@@ -75,8 +75,9 @@ class FileController extends Controller
         Storage::disk('local')->put('fileToCheck.txt', $contents);
         $this->helper->initiate();
         $this->helper->storeFileInfo($allFiles);
-        $result = $this->helper->getDeadCodes();
-//        return $result;
+        $this->helper->getDeadCodes();
+        $result = $this->helper->resultShow();
+        Storage::disk('local')->put('dead-code-result.txt', $result);
     }
 
     public Function index()

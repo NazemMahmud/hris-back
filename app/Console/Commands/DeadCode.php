@@ -42,9 +42,9 @@ class DeadCode extends Command
         $response = app()->handle($fileLists);
         $responseBody = json_decode($response->getContent(), true);
         $counter = 0;
-        foreach ($responseBody as $file){
-            $counter++;
-            echo $file."\n";
-        }
+//        foreach ($responseBody as $file){
+//            $counter++;
+//            echo $file."\n";
+//        }
     }
 }
